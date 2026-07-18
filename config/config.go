@@ -7,28 +7,20 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config
-type Config struct {
-	AlpacaKeyID     string
-	AlpacaSecretKey string
-	AlpacaBaseURL   string
-}
+// VerifyEnvironment checks that Docker or the system has the required variables.
+func VerifyEnvironment() error {
+	
+	// Silently fails on live bot
+	_ = godotenv.Load()
 
-// Load Config
-func LoadConfig() (*Config, error) {
-	// load .env file
-    _ = godotenv.Load()
+	// The official Alpaca SDK explicitly looks for these variable names
+	requiredVars := []string{"APCA_API_KEY_ID", "APCA_API_SECRET_KEY"}
 
-	cfg := &Config{
-		AlpacaKeyID:     os.Getenv("ALPACA_KEY_ID"),
-		AlpacaSecretKey: os.Getenv("ALPACA_SECRET_KEY"),
-		AlpacaBaseURL:   os.Getenv("ALPACA_BASE_URL"),
+	for _, v := range requiredVars {
+		if os.Getenv(v) == "" {
+			return fmt.Errorf("missing required environment variable: %s", v)
+		}
 	}
 
-	// Validate Creds
-	if cfg.AlpacaKeyID == "" || cfg.AlpacaSecretKey == "" || cfg.AlpacaBaseURL == "" {
-		return nil, fmt.Errorf("missing required environment variables")
-	}
-
-	return cfg, nil
+	return nil
 }
