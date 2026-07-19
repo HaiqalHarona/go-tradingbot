@@ -15,17 +15,18 @@ func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	// Initialize configuration
-	if err := config.VerifyEnvironment(); err != nil {
+	cfg, err := config.LoadConfig()
+	if err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
 	log.Println("config fetched successfully")
 
 	// Init risk management
-	rg := execution.NewRiskGuard()
+	rg := execution.NewRiskGuard(cfg)
 
 	// define stock pool
-	stockPool := []string{"AAPL", "HLAL", "NVDA", "SPUS", "TSLA"}
+	stockPool := cfg.StockPool
 	barsRequired := 50
 
 	// init trading loop

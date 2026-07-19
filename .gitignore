@@ -1,7 +1,8 @@
 # === Secrets & Environment ===
 .env
-.env.*
+.env
 *.local
+cmd/
 
 # === Go Binaries & Compilations ===
 # Compiled applications
@@ -35,3 +36,4 @@ $RECYCLE.BIN/
 # === Logs and Runtime State ===
 *.log
 logs/
+
