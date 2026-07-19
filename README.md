@@ -108,13 +108,27 @@ MAX_OPEN_POSITIONS=4
 ```
 
 ### Running the Bot
-To run the automated trading engine:
+To run the automated trading engine locally:
 ```bash
 go run main.go
 ```
 
+### Docker Deployment
+To build and run the trading engine in a background container via Docker Compose:
+
+```bash
+# Start container in detached mode
+docker compose up -d --build
+
+# View real-time logs
+docker compose logs -f
+
+# Stop container
+docker compose down
+```
+
 ### Testing Paper Orders
-To manually trigger a single test paper order (with attached bracket Take-Profit and Stop-Loss) to verify API connectivity and order routing:
+To manually trigger a single test paper order to verify API connectivity and order routing:
 ```bash
 go run ./cmd/test_order
 ```

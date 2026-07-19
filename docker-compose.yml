@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  tradingbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: go-tradingbot
+    env_file:
+      - .env
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
