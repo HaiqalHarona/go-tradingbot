@@ -6,8 +6,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: go-tradingbot
-    env_file:
-      - .env
     restart: unless-stopped
     logging:
       driver: "json-file"
