@@ -11,14 +11,15 @@ import (
 
 // Config holds trading bot configuration parameters and risk rules.
 type Config struct {
-	AlpacaKeyID      string
-	AlpacaSecretKey  string
-	AlpacaBaseURL    string
-	StockPool        []string
-	EquityAllocation float64
-	StopLossPct      float64
-	TakeProfitPct    float64
-	MaxOpenPositions int
+	AlpacaKeyID       string
+	AlpacaSecretKey   string
+	AlpacaBaseURL     string
+	DiscordWebhookURL string
+	StockPool         []string
+	EquityAllocation  float64
+	StopLossPct       float64
+	TakeProfitPct     float64
+	MaxOpenPositions  int
 }
 
 // LoadConfig validates required API credentials and parses bot risk settings.
@@ -41,14 +42,15 @@ func LoadConfig() (*Config, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	cfg := &Config{
-		AlpacaKeyID:      os.Getenv("APCA_API_KEY_ID"),
-		AlpacaSecretKey:  os.Getenv("APCA_API_SECRET_KEY"),
-		AlpacaBaseURL:    baseURL,
-		StockPool:        getEnvSlice("STOCK_POOL", []string{"AAPL", "HLAL", "NVDA", "SPUS", "TSLA"}),
-		EquityAllocation: getEnvFloat("EQUITY_ALLOCATION_PCT", 0.02),
-		StopLossPct:      getEnvFloat("STOP_LOSS_PCT", 0.015),
-		TakeProfitPct:    getEnvFloat("TAKE_PROFIT_PCT", 0.030),
-		MaxOpenPositions: getEnvInt("MAX_OPEN_POSITIONS", 4),
+		AlpacaKeyID:       os.Getenv("APCA_API_KEY_ID"),
+		AlpacaSecretKey:   os.Getenv("APCA_API_SECRET_KEY"),
+		AlpacaBaseURL:     baseURL,
+		DiscordWebhookURL: os.Getenv("DISCORD_WEBHOOK_URL"),
+		StockPool:         getEnvSlice("STOCK_POOL", []string{"AAPL", "HLAL", "NVDA", "SPUS", "TSLA"}),
+		EquityAllocation:  getEnvFloat("EQUITY_ALLOCATION_PCT", 0.02),
+		StopLossPct:       getEnvFloat("STOP_LOSS_PCT", 0.015),
+		TakeProfitPct:     getEnvFloat("TAKE_PROFIT_PCT", 0.030),
+		MaxOpenPositions:  getEnvInt("MAX_OPEN_POSITIONS", 4),
 	}
 
 	return cfg, nil

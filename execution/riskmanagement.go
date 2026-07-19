@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"tradingbot/config"
+	"tradingbot/notifier"
 
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/shopspring/decimal"
@@ -89,5 +90,23 @@ func (rg *RiskGuard) ExecuteFractionalBuy(ticker string, currentPrice float64) e
 	}
 
 	log.Printf("[ORDER PLACED] Allocated $%.2f to stock %s (Order ID: %s)\n", allocationAmount, ticker, order.ID)
+
+	stopLossPrice := currentPrice * (1.0 - rg.cfg.StopLossPct)
+	takeProfitPrice := currentPrice * (1.0 + rg.cfg.TakeProfitPct)
+
+	// Send Discord webhook notification if DISCORD_WEBHOOK_URL is configured
+	notifier.SendDiscordNotification(
+		rg.cfg.DiscordWebhookURL,
+		fmt.Sprintf("🟢 Buy Order Executed: %s", ticker),
+		fmt.Sprintf("**Stock Ticker**: `%s`\n"+
+			"**Allocated Equity**: `$%.2f` (%.1f%% of total equity)\n"+
+			"**Entry Reference Price**: `$%.2f`\n"+
+			"**Target Take-Profit**: `$%.2f` (+%.1f%%)\n"+
+			"**Target Stop-Loss**: `$%.2f` (-%.1f%%)\n"+
+			"**Alpaca Order ID**: `%s`",
+			ticker, allocationAmount, rg.cfg.EquityAllocation*100, currentPrice, takeProfitPrice, rg.cfg.TakeProfitPct*100, stopLossPrice, rg.cfg.StopLossPct*100, order.ID),
+		65280, // Green Embed Color
+	)
+
 	return nil
 }

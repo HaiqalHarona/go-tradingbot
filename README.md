@@ -42,10 +42,11 @@ graph TD
   * Initializes the `RiskGuard` engine with dynamic risk settings.
   * Reads the target stock pool (`STOCK_POOL`).
   * Runs a continuous hourly loop:
-    1. **Market Scan**: Fetches 50-period hourly prices for target tickers in `STOCK_POOL`.
-    2. **Signal Evaluation**: Evaluates SMA-50 and RSI-14 triggers.
-    3. **Order Routing**: Executes fractional buy orders with attached bracket Take-Profit and Stop-Loss orders when `BUY` signals trigger (up to `MAX_OPEN_POSITIONS`).
-    4. Hibernates for 1 hour between scan cycles.
+    1. **Market Hours Check**: Verifies current US Eastern Trading Hours (Mon-Fri 9:30 AM - 4:00 PM ET). If closed/weekend, hibernates for 1 hour.
+    2. **Market Scan**: Fetches 50-period hourly prices for target tickers in `STOCK_POOL`.
+    3. **Signal Evaluation**: Evaluates SMA-50 and RSI-14 triggers.
+    4. **Order Routing**: Executes fractional buy orders when `BUY` signals trigger (up to `MAX_OPEN_POSITIONS`).
+    5. Hibernates for 1 hour between scan cycles.
 
 ---
 
@@ -55,9 +56,13 @@ graph TD
 flowchart TD
     Start([Start Trading Bot Engine]) --> InitEnv["Load .env Configuration<br/>(API Keys, Stock Pool, Risk Rules)"]
     InitEnv --> InitRG[Initialize RiskGuard Engine]
-    InitRG --> LoopStart[Start Hourly Scan Cycle]
+    InitRG --> LoopStart[Start Hourly Cycle]
 
-    LoopStart --> ForEachTicker["For each Ticker in STOCK_POOL<br/>(e.g. AAPL, HLAL, NVDA, SPUS, TSLA)"]
+    LoopStart --> CheckMarket{Is US Market Open?<br/>Mon-Fri 9:30 - 16:00 ET}
+    CheckMarket -->|NO| OffHoursSleep[Log Off-Hours/Weekend: Hibernate 1 Hr]
+    OffHoursSleep --> LoopStart
+
+    CheckMarket -->|YES| ForEachTicker["For each Ticker in STOCK_POOL<br/>(e.g. AAPL, HLAL, NVDA, SPUS, TSLA)"]
     ForEachTicker --> FetchData[Fetch 50 Hourly Bars from Alpaca Data API]
     FetchData --> EvalStrategy["Evaluate Strategy Indicators<br/>(SMA-50 & RSI-14)"]
     
