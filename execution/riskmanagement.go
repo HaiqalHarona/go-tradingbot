@@ -2,6 +2,7 @@ package execution
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/shopspring/decimal"
@@ -22,61 +23,10 @@ func NewRiskGuard() *RiskGuard {
 	}
 }
 
-// EnforceStopLoss closes positions whose unrealized loss exceeds 1.5% of total account equity.
-// Flow:
-// 1. Fetch account info to get the total equity value.
-// 2. Compute the 1.5% maximum dollar loss threshold based on that equity.
-// 3. Retrieve all open positions from Alpaca.
-// 4. Iterate over each position, checking the absolute unrealized PnL in dollars.
-// 5. If any position's loss exceeds the threshold, call ClosePosition to liquidate it immediately.
-func (rg *RiskGuard) EnforceStopLoss() error {
-	// Call GetAccount to retrieve account state (balance, equity, buying power, etc.)
-	account, err := rg.client.GetAccount()
-	if err != nil {
-		return fmt.Errorf("failed to fetch account: %w", err)
-	}
-	
-	// Convert account equity (which is an Alpaca decimal) to float64 for easy math
-	equity := account.Equity.InexactFloat64()
-	
-	// Calculate the stop-loss limit in dollars (1.5% of total equity)
-	maxLoss := equity * 0.015
 
-	// Call GetPositions to fetch a slice of all active holdings in the account
-	positions, err := rg.client.GetPositions()
-	if err != nil {
-		return fmt.Errorf("failed to fetch active positions: %w", err)
-	}
-
-	for _, pos := range positions {
-		// UnrealizedPL represents the current PnL in dollars. If nil, skip.
-		if pos.UnrealizedPL == nil {
-			continue
-		}
-		plDollar := pos.UnrealizedPL.InexactFloat64()
-
-		// If plDollar is negative and its absolute value is larger than maxLoss, trigger stop-loss
-		if plDollar <= -maxLoss {
-			fmt.Printf("[RISK ALERT] %s loss ($%.2f) exceeds 1.5%% of total equity ($%.2f). Executing market exit.\n", pos.Symbol, plDollar, maxLoss)
-			
-			// ClosePosition sends a DELETE request to /v2/positions/{symbol} to liquidate the asset.
-			// Passing an empty ClosePositionRequest tells Alpaca to liquidate 100% of the holding.
-			if _, err := rg.client.ClosePosition(pos.Symbol, alpaca.ClosePositionRequest{}); err != nil {
-				fmt.Printf("[ERROR] Stop-loss close failed for %s: %v\n", pos.Symbol, err)
-			}
-		}
-	}
-	return nil
-}
-
-// ExecuteFractionalBuy places a market buy order allocating 2% of equity.
-// Flow:
-// 1. Fetch account info to calculate the 2% allocation from total equity.
-// 2. Verify if the account has enough actual buying power to afford the purchase.
-// 3. Scan existing positions to ensure we don't buy an asset we already own.
-// 4. Construct a fractional PlaceOrderRequest using the "Notional" field.
-// 5. Submit the order to Alpaca.
-func (rg *RiskGuard) ExecuteFractionalBuy(ticker string) error {
+// ExecuteFractionalBuy places a market buy order allocating 2% of equity with a 1.5% stop loss attached.
+// It also enforces a maximum limit of 4 active open positions/orders.
+func (rg *RiskGuard) ExecuteFractionalBuy(ticker string, currentPrice float64) error {
 	// Fetch account info to calculate allocation and verify buying power
 	account, err := rg.client.GetAccount()
 	if err != nil {
@@ -94,26 +44,44 @@ func (rg *RiskGuard) ExecuteFractionalBuy(ticker string) error {
 	}
 
 	// Retrieve open positions to check if we already own this ticker
-	positions, _ := rg.client.GetPositions()
+	positions, err := rg.client.GetPositions()
+	if err != nil {
+		return fmt.Errorf("failed to fetch active positions: %w", err)
+	}
+
 	for _, pos := range positions {
 		if pos.Symbol == ticker {
-			fmt.Printf("[%s] Position already open. Skipping trade.\n", ticker)
+			log.Printf("[%s] Position already open for stock %s. Skipping trade.\n", ticker, ticker)
 			return nil
 		}
 	}
 
-	// Convert our float64 allocation amount to a decimal.Decimal type required by Alpaca
-	dollarAmountDecimal := decimal.NewFromFloat(allocationAmount)
+	// Retrieve open orders to check overall active position + order cap
+	openOrders, _ := rg.client.GetOrders(alpaca.GetOrdersRequest{Status: "open"})
+	if len(positions)+len(openOrders) >= 4 {
+		log.Printf("[LIMIT REACHED] Maximum limit of 4 active open positions/orders reached. Skipping buy for stock %s.\n", ticker)
+		return nil
+	}
 
-	// PlaceOrderRequest configures our trade.
-	// By using "Notional" instead of "Qty", we specify a dollar budget for the trade,
-	// allowing Alpaca to purchase fractional shares if the stock price is higher than our budget.
+	// Convert float64 values to decimal.Decimal required by Alpaca
+	dollarAmountDecimal := decimal.NewFromFloat(allocationAmount)
+	stopPriceDecimal := decimal.NewFromFloat(currentPrice * 0.985)   // 1.5% stop loss
+	takeProfitDecimal := decimal.NewFromFloat(currentPrice * 1.030)  // 3.0% take profit (2:1 risk/reward)
+
+	// PlaceOrderRequest configures our trade with attached bracket TakeProfit & StopLoss
 	req := alpaca.PlaceOrderRequest{
 		Symbol:      ticker,
 		Notional:    &dollarAmountDecimal, // Dollar amount to invest
 		Side:        alpaca.Buy,           // Buy side order
 		Type:        alpaca.Market,        // Market price order
-		TimeInForce: alpaca.Day,           // Valid for the current trading day
+		TimeInForce: alpaca.GTC,           // Good 'Til Canceled for order & bracket legs
+		OrderClass:  alpaca.Bracket,       // Attach bracket orders
+		TakeProfit: &alpaca.TakeProfit{
+			LimitPrice: &takeProfitDecimal,
+		},
+		StopLoss: &alpaca.StopLoss{
+			StopPrice: &stopPriceDecimal,
+		},
 	}
 
 	// PlaceOrder sends a POST request to /v2/orders to execute the trade
@@ -122,6 +90,6 @@ func (rg *RiskGuard) ExecuteFractionalBuy(ticker string) error {
 		return fmt.Errorf("failed to place order for %s: %w", ticker, err)
 	}
 
-	fmt.Printf("[ORDER PLACED] Allocated $%.2f to %s. Order ID: %s\n", allocationAmount, ticker, order.ID)
+	log.Printf("[ORDER PLACED] Allocated $%.2f to stock %s with 3.0%% Take-Profit ($%.2f) & 1.5%% Stop-Loss ($%.2f). Order ID: %s\n", allocationAmount, ticker, currentPrice*1.030, currentPrice*0.985, order.ID)
 	return nil
 }
