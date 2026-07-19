@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   tradingbot:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/haiqalharona/go-tradingbot:latest
     container_name: go-tradingbot
     restart: unless-stopped
     logging:

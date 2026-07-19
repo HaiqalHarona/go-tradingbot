@@ -113,9 +113,15 @@ To run the automated trading engine locally:
 go run main.go
 ```
 
-### Docker Deployment
-To build and run the trading engine in a background container via Docker Compose:
+### Docker & Portainer Deployment
 
+#### Option 1: Portainer Stack Deployment (GHCR Pre-built Image)
+1. In Portainer, go to **Stacks** $\rightarrow$ **+ Add stack**.
+2. Select **Repository** and enter your repository URL.
+3. Add your environment variables in the Portainer UI (`APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`, `STOCK_POOL`, etc.).
+4. Click **Deploy the stack**.
+
+#### Option 2: Local Docker Compose
 ```bash
 # Start container in detached mode
 docker compose up -d --build
